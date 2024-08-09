@@ -1,0 +1,9 @@
+[Unit]
+Description=Run geoip-block periodically
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[WantedBy]
+WantedBy=timers.target

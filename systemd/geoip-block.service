@@ -1,0 +1,9 @@
+[Unit]
+Description=GeoIP Whitelist using IPSet
+After=network-online.target iptables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/geoip-block create
+ExecStop=/usr/libexec/geoip-block delete
