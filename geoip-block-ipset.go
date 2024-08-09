@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/biter777/countries"
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/janeczku/go-ipset/ipset"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"gopkg.in/ini.v1"
+
+	"github.com/plamendelchev/geoip-block-ipset/internal/ipset"
 )
 
 const (
@@ -55,7 +56,8 @@ func Setup(configFile string, debug bool) error {
 	log.WithFields(log.Fields{"file": configFile}).Info("Successfully read configuration file")
 
 	// Obtain IP ranges from RIPE
-	log.WithFields(log.Fields{"allowed_countries": config.AllowedCountries}).Info("Getting IP Ranges from RIPE")
+	log.WithFields(log.Fields{"allowed_countries": config.AllowedCountries}).
+		Info("Getting IP Ranges from RIPE")
 	ranges, err := getIpRanges(config.AllowedCountries)
 	if err != nil {
 		return err
@@ -185,14 +187,16 @@ func createIpSets(countries allowedCountries) error {
 		ips_type := "hash:net"
 		ips_params := ipset.Params{}
 
-		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).Debug("Creating set")
+		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).
+			Debug("Creating set")
 
-		set, err := ipset.New(name, ips_type, ips_params)
+		set, err := ipset.New(name, ips_type, &ips_params)
 		if err != nil {
 			return fmt.Errorf("IPSet Error: %q", err)
 		}
 
-		log.WithFields(log.Fields{"name": name, "num_ranges": len(ranges)}).Debug("Adding ranges to set")
+		log.WithFields(log.Fields{"name": name, "num_ranges": len(ranges)}).
+			Debug("Adding ranges to set")
 
 		err = set.Refresh(ranges)
 		if err != nil {
