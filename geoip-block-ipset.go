@@ -31,7 +31,7 @@ type config struct {
 
 type allowedCountries map[string][]string
 
-func Setup(configFile string, debug bool) error {
+func Create(configFile string, debug bool) error {
 	// Ensure superuser
 	isRoot, err := isRoot()
 	if err != nil {
@@ -87,6 +87,11 @@ func Setup(configFile string, debug bool) error {
 	log.WithFields(log.Fields{"rules": rules}).Info("Successfully created IPTables rules")
 
 	log.Info("Done")
+	return nil
+}
+
+// destroy
+func Destroy(configFile string, debug bool) error {
 	return nil
 }
 

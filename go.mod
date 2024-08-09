@@ -3,6 +3,7 @@ module github.com/plamendelchev/geoip-block-ipset
 go 1.21
 
 require (
+	github.com/alecthomas/kong v0.9.0
 	github.com/biter777/countries v1.7.5
 	github.com/coreos/go-iptables v0.7.0
 	github.com/coreos/go-semver v0.3.1
