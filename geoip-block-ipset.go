@@ -1,39 +1,23 @@
-package main
+package geoip
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"os/user"
-	"strings"
-	"time"
 
-	"github.com/biter777/countries"
-	"github.com/coreos/go-iptables/iptables"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"gopkg.in/ini.v1"
 
+	"github.com/plamendelchev/geoip-block-ipset/internal/config"
 	"github.com/plamendelchev/geoip-block-ipset/internal/ipset"
+	"github.com/plamendelchev/geoip-block-ipset/internal/iptables"
+	"github.com/plamendelchev/geoip-block-ipset/internal/ripe"
+	"github.com/plamendelchev/geoip-block-ipset/internal/utils"
 )
 
-const (
-	CONFIG_FILE = "/etc/geoip-block.conf"
-	RIPE_URL    = "https://stat.ripe.net/data/country-resource-list/data.json?v4_format=prefix"
-	USER_AGENT  = "geoip-block-ipset"
-)
-
-type config struct {
-	AllowedCountries []string `ini:"allowed_countries"`
-}
-
-type allowedCountries map[string][]string
-
+// Create
 func Create(configFile string, debug bool) error {
 	// Ensure superuser
-	isRoot, err := isRoot()
+	isRoot, err := utils.IsRoot()
 	if err != nil {
 		return err
 	}
@@ -49,7 +33,7 @@ func Create(configFile string, debug bool) error {
 
 	// Read config file
 	log.WithFields(log.Fields{"file": configFile}).Info("Reading configuration file")
-	config, err := readConfig(configFile)
+	config, err := config.Read(configFile)
 	if err != nil {
 		return err
 	}
@@ -58,7 +42,7 @@ func Create(configFile string, debug bool) error {
 	// Obtain IP ranges from RIPE
 	log.WithFields(log.Fields{"allowed_countries": config.AllowedCountries}).
 		Info("Getting IP Ranges from RIPE")
-	ranges, err := getIpRanges(config.AllowedCountries)
+	ranges, err := ripe.Ranges(config.AllowedCountries)
 	if err != nil {
 		return err
 	}
@@ -69,18 +53,24 @@ func Create(configFile string, debug bool) error {
 	}
 	log.WithFields(log.Fields(fields)).Info("Successfully got IP Ranges from RIPE")
 
+	// Convert country names from cc to geoip_block_cc
+	ipSetRanges := make(ripe.AllowedCountries)
+	for k, v := range *ranges {
+		ipSetRanges[fmt.Sprintf("geoip_allow_%s", k)] = v
+	}
+	rules := maps.Keys(ipSetRanges)
+
 	// Create and populate IPSet sets
-	log.WithFields(log.Fields{"sets": maps.Keys(*ranges)}).Info("Creating IPSet sets")
-	err = createIpSets(*ranges)
+	log.WithFields(log.Fields{"sets": rules}).Info("Creating IPSet sets")
+	err = ipset.Create(ipSetRanges)
 	if err != nil {
 		return err
 	}
-	log.WithFields(log.Fields{"sets": maps.Keys(*ranges)}).Info("Successfully created IPSet sets")
+	log.WithFields(log.Fields{"sets": rules}).Info("Successfully created IPSet sets")
 
 	// Create IPTables rules
-	rules := maps.Keys(*ranges)
 	log.WithFields(log.Fields{"rules": rules}).Info("Creating IPTables rules")
-	err = createIpTablesRules(rules)
+	err = iptables.Create(rules)
 	if err != nil {
 		return err
 	}
@@ -90,146 +80,47 @@ func Create(configFile string, debug bool) error {
 	return nil
 }
 
-// destroy
-func Destroy(configFile string, debug bool) error {
-	return nil
-}
-
-// Determine if user is superuser
-func isRoot() (bool, error) {
-	currentUser, err := user.Current()
+// Delete
+func Delete(configFile string, debug bool) error {
+	// Ensure superuser
+	isRoot, err := utils.IsRoot()
 	if err != nil {
-		return false, fmt.Errorf("Failed to determine user: %q", err)
+		return err
 	}
-	return currentUser.Username == "root", nil
-}
+	if !isRoot {
+		return fmt.Errorf("You need superuser privileges to run this program.")
+	}
 
-// Read config file
-func readConfig(path string) (*config, error) {
-	inidata, err := ini.Load(path)
+	// Set Up logger
+	log.SetOutput(os.Stdout)
+	if debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
+	// Read config file
+	log.WithFields(log.Fields{"file": configFile}).Info("Reading configuration file")
+	config, err := config.Read(configFile)
 	if err != nil {
-		return nil, fmt.Errorf("Configuration Error: %q", err)
+		return err
+	}
+	log.WithFields(log.Fields{"file": configFile}).Info("Successfully read configuration file")
+
+	// Convert country names from cc to geoip_block_cc
+	var rules []string
+	for _, country := range config.AllowedCountries {
+		rules = append(rules, utils.ToIpSetName(country))
 	}
 
-	var config config
-	err = inidata.MapTo(&config)
+	// Remove IPTables rules
+	err = iptables.Remove(rules)
 	if err != nil {
-		return nil, fmt.Errorf("Configuration Error: %q", err)
-	}
-	if len(config.AllowedCountries) == 0 {
-		return nil, fmt.Errorf("Configuration Error: %q is empty", "allowed_countries")
+		return err
 	}
 
-	// Ensure that all country codes are valid
-	for _, c := range config.AllowedCountries {
-		cc := countries.ByName(c)
-		if !countries.CountryCode.IsValid(cc) {
-			return nil, fmt.Errorf("Configuration Error: %q is not a valid Country Code", c)
-		}
-	}
-
-	return &config, nil
-}
-
-// Download IP ranges from RIPE
-func getIpRanges(configCountries []string) (*allowedCountries, error) {
-	client := &http.Client{
-		Timeout: 20 * time.Second,
-	}
-
-	ranges := make(allowedCountries)
-
-	for _, cc := range configCountries {
-		url := fmt.Sprintf("%s&resource=%s", RIPE_URL, cc)
-
-		req, err := http.NewRequest(http.MethodGet, url, nil)
-		if err != nil {
-			return nil, fmt.Errorf("Request Error: %q", err)
-		}
-
-		req.Header.Set("User-Agent", USER_AGENT)
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("Request Error: %q", err)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		defer resp.Body.Close()
-
-		if err != nil {
-			return nil, fmt.Errorf("Request Error: %q", err)
-		}
-		if resp.StatusCode > 299 {
-			return nil, fmt.Errorf("Request Error: %q %q", resp.StatusCode, string(body))
-		}
-
-		// Deserialize JSON response
-		var res map[string]json.RawMessage
-		var r []string
-		err = json.Unmarshal(body, &res)
-		err = json.Unmarshal(res["data"], &res)
-		err = json.Unmarshal(res["resources"], &res)
-		err = json.Unmarshal(res["ipv4"], &r)
-		if err != nil {
-			return nil, fmt.Errorf("Request Error: %q", err)
-		}
-
-		name := fmt.Sprintf("geoip_allow_%s", strings.ToLower(cc))
-		ranges[name] = append(ranges[name], r...)
-	}
-
-	if len(ranges) == 0 {
-		return nil, fmt.Errorf("Request Error: %q", "RIPE returned 0 IP ranges")
-	}
-
-	return &ranges, nil
-}
-
-// Create ipset set and add ranges
-func createIpSets(countries allowedCountries) error {
-	for name, ranges := range countries {
-		ips_type := "hash:net"
-		ips_params := ipset.Params{}
-
-		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).
-			Debug("Creating set")
-
-		set, err := ipset.New(name, ips_type, &ips_params)
-		if err != nil {
-			return fmt.Errorf("IPSet Error: %q", err)
-		}
-
-		log.WithFields(log.Fields{"name": name, "num_ranges": len(ranges)}).
-			Debug("Adding ranges to set")
-
-		err = set.Refresh(ranges)
-		if err != nil {
-			return fmt.Errorf("IPSet Error: %q", err)
-		}
-	}
-
-	return nil
-}
-
-// Block set in iptables
-func createIpTablesRules(chains []string) error {
-	ipt, err := iptables.New()
+	// Remove IPSet sets
+	err = ipset.Remove(rules)
 	if err != nil {
-		return fmt.Errorf("IPTables Error: %q", err)
-	}
-
-	for _, chain := range chains {
-		t := "filter"
-		c := "INPUT"
-		rs := []string{"-m", "set", "--match-set", chain, "src", "-j", "ACCEPT"}
-
-		log.WithFields(log.Fields{"table": t, "chain": c, "rulespec": rs}).Debug("Creating rule")
-
-		err = ipt.AppendUnique(t, c, rs...)
-		if err != nil {
-			return fmt.Errorf("IPTables Error: %q", err)
-		}
+		return err
 	}
 
 	return nil

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/plamendelchev/geoip-block-ipset"
 	"github.com/alecthomas/kong"
 )
 
@@ -11,19 +12,19 @@ type Globals struct {
 
 type (
 	CreateCmd  struct{}
-	DestroyCmd struct{}
+	DeleteCmd struct{}
 )
 
 func (c *CreateCmd) Run(globals *Globals) error {
-	err := Create(globals.Config, globals.Debug)
+	err := geoip.Create(globals.Config, globals.Debug)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *DestroyCmd) Run(globals *Globals) error {
-	err := Destroy(globals.Config, globals.Debug)
+func (c *DeleteCmd) Run(globals *Globals) error {
+	err := geoip.Delete(globals.Config, globals.Debug)
 	if err != nil {
 		return err
 	}
@@ -34,7 +35,7 @@ var cli struct {
 	Globals
 
 	Create  CreateCmd  `cmd:"" help:"Create geoip blocking"`
-	Destroy DestroyCmd `cmd:"" help:"Remove geoip blocking"`
+	Delete DeleteCmd `cmd:"" help:"Remove geoip blocking"`
 }
 
 func main() {
