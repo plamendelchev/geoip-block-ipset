@@ -55,16 +55,13 @@ func Create(configFile string, debug bool) error {
 		return err
 	}
 	// Log the number of IP ranges per country
-	fields := make(map[string]interface{})
-	for country, ranges := range *ranges {
-		fields[country] = len(ranges)
-	}
-	log.WithFields(log.Fields(fields)).Info("Successfully got IP Ranges from RIPE")
+	fields := utils.TotalRangesPerCountry(*ranges)
+	log.WithFields(log.Fields(*fields)).Info("Successfully got IP Ranges from RIPE")
 
 	// Convert country names from cc to geoip_block_cc
 	ipSetRanges := make(ripe.AllowedCountries)
 	for k, v := range *ranges {
-		ipSetRanges[fmt.Sprintf("geoip_allow_%s", k)] = v
+		ipSetRanges[utils.ToIpSetName(k)] = v
 	}
 	rules := maps.Keys(ipSetRanges)
 
@@ -108,14 +105,18 @@ func Delete(configFile string, debug bool) error {
 	}
 
 	// Remove IPTables rules
+	log.WithFields(log.Fields{"rules": rules}).Info("Deleting IPTables rules")
 	if err := iptables.Remove(rules); err != nil {
 		return err
 	}
+	log.WithFields(log.Fields{"rules": rules}).Info("Successfully deleted IPTables rules")
 
 	// Remove IPSet sets
+	log.WithFields(log.Fields{"sets": rules}).Info("Deleting IPSet sets")
 	if err := ipset.Remove(rules); err != nil {
 		return err
 	}
+	log.WithFields(log.Fields{"sets": rules}).Info("Successfully deleted IPSet sets")
 
 	return nil
 }

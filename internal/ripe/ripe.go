@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -60,7 +61,8 @@ func Ranges(configCountries []string) (*AllowedCountries, error) {
 			return nil, fmt.Errorf("Request Error: %q", err)
 		}
 
-		ranges[cc] = append(ranges[cc], r...)
+		name := strings.ToLower(cc)
+		ranges[name] = append(ranges[name], r...)
 	}
 
 	if len(ranges) == 0 {

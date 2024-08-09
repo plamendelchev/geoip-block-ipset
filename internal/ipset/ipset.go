@@ -13,8 +13,7 @@ func Create(countries ripe.AllowedCountries) error {
 		ips_type := "hash:net"
 		ips_params := Params{}
 
-		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).
-			Debug("Creating set")
+		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).Debug("Creating set")
 
 		set, err := New(name, ips_type, &ips_params)
 		if err != nil {
@@ -42,6 +41,8 @@ func Remove(sets []string) error {
 		if err != nil {
 			return fmt.Errorf("IPSet Error: %q", err)
 		}
+
+		log.WithFields(log.Fields{"name": name, "type": ips_type, "params": fmt.Sprintf("%+v", ips_params)}).Debug("Deleting set")
 
 		if err := set.Destroy(); err != nil {
 			return fmt.Errorf("IPSet Error: %q", err)
