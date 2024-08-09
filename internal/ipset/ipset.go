@@ -24,8 +24,7 @@ func Create(countries ripe.AllowedCountries) error {
 		log.WithFields(log.Fields{"name": name, "num_ranges": len(ranges)}).
 			Debug("Adding ranges to set")
 
-		err = set.Refresh(ranges)
-		if err != nil {
+		if err := set.Refresh(ranges); err != nil {
 			return fmt.Errorf("IPSet Error: %q", err)
 		}
 	}
@@ -44,8 +43,7 @@ func Remove(sets []string) error {
 			return fmt.Errorf("IPSet Error: %q", err)
 		}
 
-		err = set.Destroy()
-		if err != nil {
+		if err := set.Destroy(); err != nil {
 			return fmt.Errorf("IPSet Error: %q", err)
 		}
 	}

@@ -20,8 +20,7 @@ func Read(path string) (*Config, error) {
 
 	var c Config
 
-	err = inidata.MapTo(&c)
-	if err != nil {
+	if err := inidata.MapTo(&c); err != nil {
 		return nil, fmt.Errorf("Configuration Error: %q", err)
 	}
 	if len(c.AllowedCountries) == 0 {

@@ -21,8 +21,7 @@ func Create(chains []string) error {
 
 		log.WithFields(log.Fields{"table": t, "chain": c, "rulespec": rs}).Debug("Creating rule")
 
-		err = ipt.AppendUnique(t, c, rs...)
-		if err != nil {
+		if err := ipt.AppendUnique(t, c, rs...); err != nil {
 			return fmt.Errorf("IPTables Error: %q", err)
 		}
 	}
