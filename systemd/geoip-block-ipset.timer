@@ -5,5 +5,5 @@ Description=Run geoip-block periodically
 OnCalendar=daily
 Persistent=true
 
-[WantedBy]
+[Install]
 WantedBy=timers.target

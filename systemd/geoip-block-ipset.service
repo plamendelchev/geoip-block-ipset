@@ -5,5 +5,5 @@ After=network-online.target iptables.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/libexec/geoip-block create
-ExecStop=/usr/libexec/geoip-block delete
+ExecStart=/usr/libexec/geoip-block-ipset create
+ExecStop=/usr/libexec/geoip-block-ipset delete
