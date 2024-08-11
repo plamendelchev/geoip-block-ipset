@@ -1,0 +1,42 @@
+---
+name: Upload binary and RPM packages on new release
+
+on:
+  release:
+    types:
+      - created
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: Build and Release linux/amd64 binary and RPM package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build binary and upload asset to github release
+        id: build-bin
+        uses: wangyoucao577/go-release-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goarch: amd64
+          goos: linux
+          project_path: ./cmd/geoip-block-ipset/
+          upload: false
+
+      - name: Build RPM package
+        id: build-rpm
+        uses: ./.github/actions/rpm-release-action/
+        with:
+          spec_file: ./packages/rpm/geoip-block-ipset.spec
+
+      - name: Upload release assets
+        uses: alexellis/upload-assets@0.4.1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          asset_paths: '["${{ steps.build-bin.outputs.release_asset_dir }}/*", "${{ steps.build-rpm.outputs.packages_dir }}/x86_64/*.rpm"]'

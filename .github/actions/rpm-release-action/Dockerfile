@@ -1,9 +1,8 @@
-FROM almalinux:9-minimal
+FROM almalinux:9
 
 # Install depedencies
-RUN dnf -y --refresh update && \
-  dnf -y install rpm-build rpmdevtools git
+RUN dnf --refresh -y install rpm-build git tar 'dnf-command(builddep)'
 
-COPY entrypoint.sh /entrypoint.sh
+COPY --chmod=0744 entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

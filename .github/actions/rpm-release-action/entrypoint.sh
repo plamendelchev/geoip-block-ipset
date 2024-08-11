@@ -1,29 +1,33 @@
 #!/bin/bash -l
 
 ## Inputs
-
 SPEC_FILE="$1"
-# GITHUB_TOKEN="$2"
-# UPLOAD_RELEASE_SCRIPT_URL='https://gist.github.com/stefanbuck/ce788fee19ab6eb0b4447a85fc99f447/raw/dbadd7d310ce8446de89c4ffdf1db0b400d0f6c3/upload-github-release-asset.sh'
-#
-# readonly GITHUB_TOKEN UPLOAD_RELEASE_SCRIPT_URL
 
 ## Build RPM
 
 # Create RPM build tree
-rpmdev-setuptree
+RPMBUILD_DIR="$(realpath ./rpmbuild/)"
+mkdir -v -p "$RPMBUILD_DIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
-# Move SPEC file to RPM tree
-mv -v "$SPEC_FILE" ~/rpmbuild/SPECS/
+# Copy SPEC file to RPM tree
+cp -v "$SPEC_FILE" "$RPMBUILD_DIR"/SPECS/
 
 # Find package metadata
-SPEC_FILE="$HOME/rpmbuild/SPECS/$SPEC_FILE"
+SPEC_FILE="$RPMBUILD_DIR/SPECS/$(basename "$SPEC_FILE")"
 PKG_VERSION="$(rpmspec -q --qf "%{VERSION}\n" "$SPEC_FILE" | sort -u | head -n 1)"
 PKG_NAME="$(rpmspec -q --qf '%{NAME}\n' "$SPEC_FILE" | grep -v -P '\-(devel|debug).*$' | sort -u | head -n 1)"
 
 # Find Git metadata
 GIT_RELEASE_TAG="$(basename "$GITHUB_REF")"
 GIT_REPO_NAME="$(basename "$GITHUB_REPOSITORY")"
+
+# Print all vars
+echo "RPMBUILD_DIR: $RPMBUILD_DIR"
+echo "SPEC_FILE: $SPEC_FILE"
+echo "PKG_VERSION: $PKG_VERSION"
+echo "PKG_NAME: $PKG_NAME"
+echo "GIT_RELEASE_TAG: $GIT_RELEASE_TAG"
+echo "GIT_REPO_NAME: $GIT_REPO_NAME"
 
 # Ensure package and git metadata match
 if [[ ! v"$PKG_VERSION" == "$GIT_RELEASE_TAG" ]]; then
@@ -35,28 +39,19 @@ if [[ ! "$PKG_NAME" == "$GIT_REPO_NAME" ]]; then
   exit 1
 fi
 
-readonly SPEC_FILE PKG_VERSION PKG_NAME GIT_RELEASE_TAG GIT_REPO_NAME
+readonly RPMBUILD_DIR SPEC_FILE PKG_VERSION PKG_NAME GIT_RELEASE_TAG GIT_REPO_NAME
 
 # Install build requirements
-dnf --refresh -y builddep "$SPEC_FILE"
+dnf --refresh -y builddep "$SPEC_FILE" || exit 1
+
+# Fix for "detected dubious ownership in repository"
+git config --global --add safe.directory /github/workspace
 
 # Create archive
-git archive --output=~/rpmbuild/SOURCES/"$PKG_NAME"-"$PKG_VERSION".tar.gz --prefix="$PKG_NAME"-"$PKG_VERSION"/ "$GIT_RELEASE_TAG"
+git archive --output="$RPMBUILD_DIR"/SOURCES/"$PKG_NAME"-"$PKG_VERSION".tar.gz --prefix="$PKG_NAME"-"$PKG_VERSION"/ "$GIT_RELEASE_TAG" || exit 1
 
 # Build package
-rpmbuild -ba "$SPEC_FILE"
+rpmbuild --define "_topdir $RPMBUILD_DIR" -ba "$SPEC_FILE" || exit 1
 
 # Define output
-echo "packages_dir=~/rpmbuild/RPMS/" >>"$GITHUB_OUTPUT"
-
-#
-# ## Upload asset to Github Release
-#
-# # Download "upload-github-release-asset.sh"
-# curl -X GET -L -o upload-github-release-asset.sh "$UPLOAD_RELEASE_SCRIPT_URL"
-# bash ./upload-github-release-asset.sh \
-#   github_api_token="$GITHUB_TOKEN" \
-#   owner="$GITHUB_REPOSITORY_OWNER" \
-#   repo="$GIT_REPO_NAME" \
-#   tag="$GIT_RELEASE_TAG" \
-#   filename=~/rpmbuild/RPMS/x86_64/"$PKG_NAME"-"$PKG_VERSION".el9.x86_64.rpm
+echo "packages_dir=./rpmbuild/RPMS" >>"$GITHUB_OUTPUT"
