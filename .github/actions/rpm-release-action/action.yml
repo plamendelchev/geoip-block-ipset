@@ -1,0 +1,19 @@
+---
+name: Release RPM packages
+description: Build and Release RPM Packages to GitHub Release Assets
+inputs:
+  spec_file:
+    description: Path in the repository of the RPM SPEC file.
+    required: true
+  github_token:
+    description: GITHUB_TOKEN for uploading releases to Github asserts.
+    required: true
+outputs:
+  packages_dir:
+    description: Directory containing the built RPMs
+runs:
+  using: docker
+  image: Dockerfile
+  args:
+    - ${{ inputs.spec_file }}
+    - ${{ inputs.github_token }}
