@@ -3,7 +3,7 @@
 
 # https://github.com/plamendelchev/geoip-block-ipset
 %global goipath github.com/plamendelchev/geoip-block-ipset
-Version:        0.1.0
+Version:        0.2.0
 
 %gometa -f
 
