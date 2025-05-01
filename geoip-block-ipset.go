@@ -9,7 +9,6 @@ import (
 
 	"github.com/plamendelchev/geoip-block-ipset/internal/config"
 	"github.com/plamendelchev/geoip-block-ipset/internal/ipset"
-	"github.com/plamendelchev/geoip-block-ipset/internal/iptables"
 	"github.com/plamendelchev/geoip-block-ipset/internal/ripe"
 	"github.com/plamendelchev/geoip-block-ipset/internal/utils"
 )
@@ -21,7 +20,7 @@ func setup(debug bool) error {
 		return err
 	}
 	if !isRoot {
-		return fmt.Errorf("You need superuser privileges to run this program.")
+		return fmt.Errorf("you need superuser privileges to run this program")
 	}
 
 	// Set Up logger
@@ -72,13 +71,6 @@ func Create(configFile string, debug bool) error {
 	}
 	log.WithFields(log.Fields{"sets": rules}).Info("Successfully created IPSet sets")
 
-	// Create IPTables rules
-	log.WithFields(log.Fields{"rules": rules}).Info("Creating IPTables rules")
-	if err := iptables.Create(rules); err != nil {
-		return err
-	}
-	log.WithFields(log.Fields{"rules": rules}).Info("Successfully created IPTables rules")
-
 	log.Info("Done")
 	return nil
 }
@@ -103,13 +95,6 @@ func Delete(configFile string, debug bool) error {
 	for _, country := range config.AllowedCountries {
 		rules = append(rules, utils.ToIpSetName(country))
 	}
-
-	// Remove IPTables rules
-	log.WithFields(log.Fields{"rules": rules}).Info("Deleting IPTables rules")
-	if err := iptables.Remove(rules); err != nil {
-		return err
-	}
-	log.WithFields(log.Fields{"rules": rules}).Info("Successfully deleted IPTables rules")
 
 	// Remove IPSet sets
 	log.WithFields(log.Fields{"sets": rules}).Info("Deleting IPSet sets")
