@@ -54,22 +54,30 @@ func Create(configFile string, debug bool) error {
 		return err
 	}
 	// Log the number of IP ranges per country
-	fields := utils.TotalRangesPerCountry(*ranges)
-	log.WithFields(log.Fields(*fields)).Info("Successfully got IP Ranges from RIPE")
+	ranges_per_cc := utils.TotalRangesPerCountry(*ranges)
+	log.WithFields(log.Fields(*ranges_per_cc)).Info("Successfully got IP Ranges from RIPE")
 
-	// Convert country names from cc to geoip_block_cc
+	// Convert country names from cc to geoip_allow_cc
 	ipSetRanges := make(ripe.AllowedCountries)
 	for k, v := range *ranges {
 		ipSetRanges[utils.ToIpSetName(k)] = v
 	}
-	rules := maps.Keys(ipSetRanges)
+
+	// Create set for allowed_ranges
+	if len(config.AllowedRanges) > 0 {
+		log.WithFields(log.Fields{"allowed_ranges": len(config.AllowedRanges)}).Info("Found allowed_ranges in config")
+		ipSetRanges["geoip_allowed_ranges"] = config.AllowedRanges
+	}
+
+	// Create slice with the names of the sets
+	set_names := maps.Keys(ipSetRanges)
 
 	// Create and populate IPSet sets
-	log.WithFields(log.Fields{"sets": rules}).Info("Creating IPSet sets")
+	log.WithFields(log.Fields{"sets": set_names}).Info("Creating IPSet sets")
 	if err := ipset.Create(ipSetRanges); err != nil {
 		return err
 	}
-	log.WithFields(log.Fields{"sets": rules}).Info("Successfully created IPSet sets")
+	log.WithFields(log.Fields{"sets": set_names}).Info("Successfully created IPSet sets")
 
 	log.Info("Done")
 	return nil
@@ -94,6 +102,11 @@ func Delete(configFile string, debug bool) error {
 	var rules []string
 	for _, country := range config.AllowedCountries {
 		rules = append(rules, utils.ToIpSetName(country))
+	}
+
+	// Remove geoip_allowed_ranges set if configured
+	if len(config.AllowedRanges) > 0 {
+		rules = append(rules, "geoip_allowed_ranges")
 	}
 
 	// Remove IPSet sets

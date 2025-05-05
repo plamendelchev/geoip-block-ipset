@@ -9,29 +9,30 @@ import (
 
 type Config struct {
 	AllowedCountries []string `ini:"allowed_countries"`
+	AllowedRanges    []string `ini:"allowed_ranges"`
 }
 
 // Read config file
 func Read(path string) (*Config, error) {
 	inidata, err := ini.Load(path)
 	if err != nil {
-		return nil, fmt.Errorf("Configuration Error: %q", err)
+		return nil, fmt.Errorf("configuration Error: %q", err)
 	}
 
 	var c Config
 
 	if err := inidata.MapTo(&c); err != nil {
-		return nil, fmt.Errorf("Configuration Error: %q", err)
+		return nil, fmt.Errorf("configuration Error: %q", err)
 	}
 	if len(c.AllowedCountries) == 0 {
-		return nil, fmt.Errorf("Configuration Error: %q is empty", "allowed_countries")
+		return nil, fmt.Errorf("configuration Error: %q is empty", "allowed_countries")
 	}
 
 	// Ensure that all country codes are valid
 	for _, country := range c.AllowedCountries {
 		cc := countries.ByName(country)
 		if !countries.CountryCode.IsValid(cc) {
-			return nil, fmt.Errorf("Configuration Error: %q is not a valid Country Code", c)
+			return nil, fmt.Errorf("configuration Error: %q is not a valid Country Code", c)
 		}
 	}
 
